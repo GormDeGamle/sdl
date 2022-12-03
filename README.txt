@@ -3,7 +3,7 @@ https://github.com/GormDeGamle
 @GormDeGamle@sueden.social
 All rights reserved.
 
-Class library for creating SDL apps.
+Lazarus Class library for creating SDL apps.
 Developed for and in cinjunction with Squared!
 Hosted on GitHub as an archive - will probably get no forther updates.
 
