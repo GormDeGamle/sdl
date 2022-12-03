@@ -1,0 +1,905 @@
+unit sdlclasses;
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils, CustApp, sdl, sdl_ttf, sdl_gfx, sdltypes, sdltimer, sdlfonts;
+
+type
+  //****************************************************************************
+  // class to represent a SDL surface
+  //****************************************************************************
+
+  TSDLSurface = class
+  protected
+    FSurface: PSDL_Surface;
+
+    function MapRGB(r, g, b: UInt8): UInt32;
+    function MapRGBA(r, g, b, a: UInt8): UInt32;
+    //*** properties
+    procedure SetSurface(aSurface: PSDL_Surface); virtual;
+    function GetAssigned: boolean; virtual;
+    function GetWidth: integer; virtual;
+    function GetHeight: integer; virtual;
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    procedure Clear; virtual;
+    procedure Update; virtual;
+
+    procedure Load(const aFileName: string); overload;
+    procedure Load(const aFileName: string; aColorKey: TRGBAColor); overload;
+
+    procedure RenderTo(aSurface: TSDLSurface); virtual; overload;
+    procedure RenderTo(aX, aY: integer; aSurface: TSDLSurface); virtual; overload;
+
+    property Surface: PSDL_Surface read FSurface write SetSurface;
+    property Assigned: boolean read GetAssigned;
+    property Width: integer read GetWidth;
+    property Height: integer read GetHeight;
+  end;
+
+  //****************************************************************************
+  // class to represent a rotateable and zoomable SDL surface
+  //****************************************************************************
+
+  TSDLFlexSurface = class(TSDLSurface)
+  private
+    FZoom: double;
+    FZoomDirection: TZoomDirection;
+    FAngle: double;
+  protected
+    FOrgSurface: PSDL_Surface;
+
+    procedure SetSurface(aSurface: PSDL_Surface); override;
+    procedure SetZoom(aZoom: double); virtual;
+    procedure SetAngle(aAngle: double); virtual;
+    function GetIsDeFormed: boolean; virtual;
+
+    property OrgSurface: PSDL_Surface read FOrgSurface;
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    procedure Update; override;
+
+    property Zoom: double read FZoom write SetZoom;                             //<- zoom factor (1 is original size)
+    property ZoomDirection: TZoomDirection read FZoomDirection write FZoomDirection; //<- standard is both
+    property Angle: double read FAngle write SetAngle;                          //<- rotation angle in degrees
+    property isDeFormed: boolean read GetIsDeFormed;                            //<- flags if a zoom or rotation is necessary
+  end;
+
+  //****************************************************************************
+  // class to represent a SDL surface with drawing capabilities
+  //****************************************************************************
+
+  TSDLGfxSurface = class(TSDLFlexSurface)
+  private
+    FColor: TRGBAColor;
+    FBackgroundColor: TRGBAColor;
+    FAntiAliased: boolean;
+  protected
+    function MapColor(aColor: TRGBAColor): UInt32;
+  public
+    constructor Create;
+
+    procedure Pixel(aX, aY: integer); overload;
+    procedure Pixel(aX, aY: integer; aColor: TRGBAColor); overload;
+    procedure Box(aX1, aY1, aX2, aY2: integer); overload;
+    procedure Box(aX1, aY1, aX2, aY2: integer; aColor: TRGBAColor); overload;
+    procedure Rectangle(aX1, aY1, aX2, aY2: integer); overload;
+    procedure Rectangle(aX1, aY1, aX2, aY2: integer; aColor: TRGBAColor); overload;
+    procedure Triangle(aX1, aY1, aX2, aY2, aX3, aY3: integer); overload;
+    procedure Triangle(aX1, aY1, aX2, aY2, aX3, aY3: integer; aColor: TRGBAColor; aAntiAliased: boolean); overload;
+    procedure SolidTriangle(aX1, aY1, aX2, aY2, aX3, aY3: integer); overload;
+    procedure SolidTriangle(aX1, aY1, aX2, aY2, aX3, aY3: integer; aColor: TRGBAColor); overload;
+    procedure Polygon(aX: array of smallint; aY: array of smallint); overload;
+    procedure Polygon(aX: array of smallint; aY: array of smallint; aColor: TRGBAColor; aAntiAliased: boolean); overload;
+    procedure SolidPolygon(aX: array of smallint; aY: array of smallint); overload;
+    procedure SolidPolygon(aX: array of smallint; aY: array of smallint; aColor: TRGBAColor); overload;
+    procedure Disc(aX, aY, aR: integer); overload;
+    procedure Disc(aX, aY, aR: integer; aColor: TRGBAColor); overload;
+    procedure Circle(aX, aY, aR: integer); overload;
+    procedure Circle(aX, aY, aR: integer; aColor: TRGBAColor; aAntiAliased: boolean); overload;
+    procedure SolidEllipse(aX, aY, aRX, aRY: integer); overload;
+    procedure SolidEllipse(aX, aY, aRX, aRY: integer; aColor: TRGBAColor); overload;
+    procedure Ellipse(aX, aY, aRX, aRY: integer); overload;
+    procedure Ellipse(aX, aY, aRX, aRY: integer; aColor: TRGBAColor; aAntiAliased: boolean); overload;
+    procedure Pie(aX, aY, aR, aStart, aEnd: integer); overload;
+    procedure Pie(aX, aY, aR, aStart, aEnd: integer; aColor: TRGBAColor); overload;
+    procedure SolidPie(aX, aY, aR, aStart, aEnd: integer); overload;
+    procedure SolidPie(aX, aY, aR, aStart, aEnd: integer; aColor: TRGBAColor); overload;
+    procedure HorizontalLine(aX1, aX2, aY: integer); overload;
+    procedure HorizontalLine(aX1, aX2, aY: integer; aColor: TRGBAColor); overload;
+    procedure VerticalLine(aX, aY1, aY2: integer); overload;
+    procedure VerticalLine(aX, aY1, aY2: integer; aColor: TRGBAColor); overload;
+    procedure Line(aX1, aY1, aX2, aY2: integer); overload;
+    procedure Line(aX1, aY1, aX2, aY2: integer; aColor: TRGBAColor; aAntiAliased: boolean); overload;
+
+    procedure Clear; override;
+    procedure Fill; overload;
+    procedure Fill(aColor: TRGBAColor); overload;
+    procedure WriteText(aX, aY: integer; aText: string; aFont: TSDLFont); virtual;
+
+    property Color: TRGBAColor read FColor write FColor;
+    property BackgroundColor: TRGBAColor read FBackgroundColor write FBackgroundColor;
+    property AntiAliased: boolean read FAntiAliased write FAntiAliased;
+  end;
+
+  //****************************************************************************
+  // Class to represent the screen
+  //****************************************************************************
+
+  TSDLScreen = class(TSDLGfxSurface)
+  public
+    procedure SetMode(aWidth, aHeight, aBpp: integer; aFlags: Cardinal);
+
+    procedure Flip; virtual;
+  end;
+
+  //****************************************************************************
+  // raw base app
+  //****************************************************************************
+
+  TSDLBaseApp = class(TCustomApplication)
+  private
+    FTimer: TSDLTimer;
+    FFont: TSDLFont;
+
+    FScrWidth: integer;
+    FScrHeight: integer;
+    FScrBpp: integer;
+    FScrFlags: Cardinal;
+
+    FFPS: integer;
+
+    FKeyRepeatDelay: integer;
+    FKeyRepeatInterval: integer;
+  protected
+    //*** SDL
+    procedure InitSDL; overload; virtual;
+    procedure InitSDL(aFlags: Cardinal); overload; virtual;
+    procedure QuitSDL; virtual;
+
+    procedure InitTTF; virtual;
+    procedure QuitTTF; virtual;
+
+    procedure InitScreenParams; virtual;                                        //<- initializes the default Screen Params (to init the video mode with)
+    procedure InitScreen; virtual;
+
+    procedure InitCustomResources; virtual;                                     //<- override this to init custom SDL dependant stuff
+    procedure FreeCustomResources; virtual;
+
+    procedure DoRun; override;
+    procedure ProcessParams; virtual;                                           //<- process command line parameters
+    procedure MainLoop; virtual;                                                //<- main program loop
+
+    procedure SetKeyRepeatDelay(aDelay: integer);
+    procedure SetKeyRepeatInterval(aInterval: integer);
+
+    property ScrWidth: integer read FScrWidth write FScrWidth;
+    property ScrHeight: integer read FScrHeight write FScrHeight;
+    property ScrBpp: integer read FScrBpp write FScrBpp;
+    property ScrFlags: Cardinal read FScrFlags write FScrFlags;
+  public
+    constructor Create(TheOwner: TComponent); override;
+    destructor Destroy; override;
+
+    property Timer: TSDLTimer read FTimer;                                      //<- timer e.g. for FPS limitigng
+    property Font: TSDLFont read FFont;
+    property FPS: integer read FFPS write FFPS;                                 //<- desired FPS (for the limiter)
+
+    property KeyRepeatDelay: integer read FKeyRepeatDelay write SetKeyRepeatDelay;
+    property KeyRepeatInterval: integer read FKeyRepeatInterval write SetKeyRepeatInterval;
+  end;
+
+//******************************************************************************
+// Screen singleton
+//******************************************************************************
+
+var
+  Screen: TSDLScreen;
+
+implementation
+
+uses
+  sdltools;
+
+//******************************************************************************
+// TSDLSurface
+//******************************************************************************
+
+constructor TSDLSurface.Create;
+begin
+  inherited;
+  FSurface := nil;
+end;
+
+destructor TSDLSurface.Destroy;
+begin
+  SDL_FreeSurface(FSurface);
+
+  inherited;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLSurface.SetSurface(aSurface: PSDL_Surface);
+begin
+  SDL_FreeSurface(FSurface); //<- destroy the old surface
+  FSurface := aSurface;      //<- set the new one
+end;
+
+function TSDLSurface.GetAssigned: boolean;
+begin
+  Result := Surface <> nil;
+end;
+
+function TSDLSurface.GetWidth: integer;
+begin
+  Result := 0;
+
+  if Assigned then begin
+    Result := Surface^.w;
+  end;
+end;
+
+function TSDLSurface.GetHeight: integer;
+begin
+  Result := 0;
+
+  if Assigned then begin
+    Result := Surface^.h;
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+function TSDLSurface.MapRGB(r, g, b: UInt8): UInt32;
+begin
+  Result := 0;
+
+  if Assigned then
+    Result := SDL_MapRGB(Surface^.format, r, g, b);
+  ;
+end;
+
+function TSDLSurface.MapRGBA(r, g, b, a: UInt8): UInt32;
+begin
+  Result := 0;
+
+  if Assigned then
+    Result := SDL_MapRGBA(Surface^.format, r, g, b, a);
+  ;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLSurface.Clear;
+var
+  aRect: TSDL_Rect;
+begin
+  if Assigned then begin
+    aRect.x := 0;
+    aRect.y := 0;
+    aRect.w := Surface^.w;
+    aRect.h := Surface^.h;
+
+    SDL_FillRect(Surface, @aRect, MapRGB(0, 0, 0));
+  end;
+end;
+
+procedure TSDLSurface.Update;
+begin
+  //*** apply changes that affect the visual appearance of the surface
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLSurface.Load(const aFileName: string);
+begin
+  SDL_FreeSurface(FSurface);
+  FSurface := LoadImage(aFileName);
+end;
+
+procedure TSDLSurface.Load(const aFileName: string; aColorKey: TRGBAColor);
+begin
+  SDL_FreeSurface(FSurface);
+  FSurface := LoadImage(aFileName, aColorKey.r, aColorKey.g, aColorKey.b);
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLSurface.RenderTo(aSurface: TSDLSurface);
+begin
+  RenderTo(0, 0, aSurface);
+end;
+
+procedure TSDLSurface.RenderTo(aX, aY: integer; aSurface: TSDLSurface);
+begin
+  ApplySurface(aX, aY, Surface, aSurface.Surface);
+end;
+
+//******************************************************************************
+// TSDLFlexSurface
+//******************************************************************************
+
+constructor TSDLFlexSurface.Create;
+begin
+  inherited Create;
+  FOrgSurface := nil;
+  FZoom := 1;
+  FZoomDirection := zdBoth;
+  FAngle := 0;
+end;
+
+destructor TSDLFlexSurface.Destroy;
+begin
+  if FOrgSurface <> FSurface then
+    SDL_FreeSurface(FOrgSurface)
+  ;
+
+  inherited;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLFlexSurface.SetSurface(aSurface: PSDL_Surface);
+begin
+  //*** free the old original surface if necessary
+  SDL_FreeSurface(FOrgSurface);
+  FOrgSurface := aSurface;
+  FSurface := aSurface;
+end;
+
+procedure TSDLFlexSurface.SetZoom(aZoom: double);
+begin
+  if aZoom <> FZoom then begin
+    FZoom := aZoom;
+  end;
+end;
+
+procedure TSDLFlexSurface.SetAngle(aAngle: double);
+begin
+  if aAngle <> FAngle then begin
+    FAngle := aAngle;
+  end;
+end;
+
+function TSDLFlexSurface.GetIsDeFormed: boolean;
+begin
+  Result := (Angle <> 0) or (Zoom <> 1);
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLFlexSurface.Update;
+begin
+  if not isDeformed then begin
+    //*** no zoom needed -> just use the original surface
+    if FSurface <> FOrgSurface then begin
+      SDL_FreeSurface(FSurface);
+      FSurface := FOrgSurface;
+    end;
+  end
+  else begin
+    //*** recreate a zoomed version of the original surface
+    if FSurface <> FOrgSurface then
+       SDL_FreeSurface(FSurface)
+    ;
+    case ZoomDirection of
+      zdBoth:
+        FSurface := rotozoomSurface(OrgSurface, FAngle, FZoom, 1);
+      zdX:
+        FSurface := rotozoomSurfaceXY(OrgSurface, FAngle, FZoom, 1, 1);
+      zdY:
+        FSurface := rotozoomSurfaceXY(OrgSurface, FAngle, 1, FZoom, 1);
+    end;
+  end;
+end;
+
+//******************************************************************************
+// TSDLGfxSurface
+//******************************************************************************
+
+constructor TSDLGfxSurface.Create;
+begin
+  inherited;
+
+  FColor           := gcWhite;
+  FBackgroundColor := gcBlack;
+  FAntiAliased     := FALSE;
+end;
+
+//------------------------------------------------------------------------------
+
+function TSDLGfxSurface.MapColor(aColor: TRGBAColor): UInt32;
+begin
+  Result := MapRGBA(aColor.r, aColor.g, aColor.b, aColor.a);
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLGfxSurface.Pixel(aX, aY: integer); overload;
+begin
+  Pixel(aX, aY, Color);
+end;
+
+procedure TSDLGfxSurface.Pixel(aX, aY: integer; aColor: TRGBAColor); overload;
+begin
+  if Assigned then begin
+    pixelColor(Surface, aX, aY, UInt32(aColor));
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLGfxSurface.Box(aX1, aY1, aX2, aY2: integer);
+begin
+  Box(aX1, aY1, aX2, aY2, Color);
+end;
+
+procedure TSDLGfxSurface.Box(aX1, aY1, aX2, aY2: integer; aColor: TRGBAColor);
+var
+  aRect: TSDL_Rect;
+begin
+  if Assigned then begin
+    if aColor.a = $FF then begin
+      //*** no blending required
+      aRect.x := aX1;
+      aRect.y := aY1;
+      aRect.w := aX2 - aX1;
+      aRect.h := aY2 - aY1;
+
+      SDL_FillRect(Surface, @aRect, MapColor(aColor));
+    end
+    else begin
+      //*** with blending
+      boxColor(Surface, aX1, aY1, aX2, aY2, UInt32(aColor));
+    end;
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLGfxSurface.Rectangle(aX1, aY1, aX2, aY2: integer); overload;
+begin
+  Rectangle(aX1, aY1, aX2, aY2, Color);
+end;
+
+procedure TSDLGfxSurface.Rectangle(aX1, aY1, aX2, aY2: integer; aColor: TRGBAColor); overload;
+begin
+  if Assigned then begin
+    rectangleColor(Surface, aX1, aY1, aX2, aY2, UInt32(aColor));
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLGfxSurface.Triangle(aX1, aY1, aX2, aY2, aX3, aY3: integer); overload;
+begin
+  Triangle(aX1, aY1, aX2, aY2, aX3, aY3, Color, AntiAliased);
+end;
+
+procedure TSDLGfxSurface.Triangle(aX1, aY1, aX2, aY2, aX3, aY3: integer; aColor: TRGBAColor; aAntiAliased: boolean); overload;
+begin
+  if Assigned then begin
+    if aAntiAliased then
+      aatrigonColor(Surface, aX1, aY1, aX2, aY2, aX3, aY3, UInt32(aColor))
+    else
+      trigonColor(Surface, aX1, aY1, aX2, aY2, aX3, aY3, UInt32(aColor))
+    ;
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLGfxSurface.SolidTriangle(aX1, aY1, aX2, aY2, aX3, aY3: integer); overload;
+begin
+  SolidTriangle(aX1, aY1, aX2, aY2, aX3, aY3, Color);
+end;
+
+procedure TSDLGfxSurface.SolidTriangle(aX1, aY1, aX2, aY2, aX3, aY3: integer; aColor: TRGBAColor); overload;
+begin
+  if Assigned then begin
+    filledtrigonColor(Surface, aX1, aY1, aX2, aY2, aX3, aY3, UInt32(aColor))
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLGfxSurface.Polygon(aX: array of smallint; aY: array of smallint); overload;
+begin
+  Polygon(aX, aY, Color, AntiAliased);
+end;
+
+procedure TSDLGfxSurface.Polygon(aX: array of smallint; aY: array of smallint; aColor: TRGBAColor; aAntiAliased: boolean); overload;
+begin
+  if Length(aX) <> Length(aY) then
+    raise ESDLError.Create('number of X coordinates doesn''t match number of Y coordinates')
+  ;
+  if Assigned then begin
+    if aAntiAliased then
+      aapolygonColor(Surface, @aX, @aY, Length(aX), UInt32(aColor))
+    else
+      polygonColor(Surface, @aX, @aY, Length(aX), UInt32(aColor))
+    ;
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLGfxSurface.SolidPolygon(aX: array of smallint; aY: array of smallint); overload;
+begin
+  SolidPolygon(aX, aY, Color);
+end;
+
+procedure TSDLGfxSurface.SolidPolygon(aX: array of smallint; aY: array of smallint; aColor: TRGBAColor); overload;
+begin
+  if Length(aX) <> Length(aY) then
+    raise ESDLError.Create('number of X coordinates doesn''t match number of Y coordinates')
+  ;
+  if Assigned then begin
+    filledpolygonColor(Surface, @aX, @aY, Length(aX), UInt32(aColor))
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLGfxSurface.Disc(aX, aY, aR: integer); overload;
+begin
+  Disc(aX, aY, aR, Color);
+end;
+
+procedure TSDLGfxSurface.Disc(aX, aY, aR: integer; aColor: TRGBAColor); overload;
+begin
+  if Assigned then begin
+    filledCircleColor(Surface, aX, aY, aR, UInt32(aColor));
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLGfxSurface.Circle(aX, aY, aR: integer); overload;
+begin
+  Circle(aX, aY, aR, Color, AntiAliased);
+end;
+
+procedure TSDLGfxSurface.Circle(aX, aY, aR: integer; aColor: TRGBAColor; aAntiAliased: boolean); overload;
+begin
+  if Assigned then begin
+    if aAntiAliased then
+      aacircleColor(Surface, aX, aY, aR, UInt32(aColor))
+    else
+      circleColor(Surface, aX, aY, aR, UInt32(aColor))
+    ;
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLGfxSurface.SolidEllipse(aX, aY, aRX, aRY: integer); overload;
+begin
+  SolidEllipse(aX, aY, aRX, aRY, Color);
+end;
+
+procedure TSDLGfxSurface.SolidEllipse(aX, aY, aRX, aRY: integer; aColor: TRGBAColor); overload;
+begin
+  if Assigned then begin
+    filledEllipseColor(Surface, aX, aY, aRX, aRY, UInt32(aCOlor));
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLGfxSurface.Ellipse(aX, aY, aRX, aRY: integer); overload;
+begin
+  Ellipse(aX, aY, aRX, aRY, Color, AntiAliased);
+end;
+
+procedure TSDLGfxSurface.Ellipse(aX, aY, aRX, aRY: integer; aColor: TRGBAColor; aAntiAliased: boolean); overload;
+begin
+  if Assigned then begin
+    if aAntiAliased then
+      aaellipseColor(Surface, aX, aY, aRX, aRY, UInt32(aColor))
+    else
+      ellipseColor(Surface, aX, aY, aRX, aRY, UInt32(aColor))
+    ;
+  end;
+end;
+
+procedure TSDLGfxSurface.Pie(aX, aY, aR, aStart, aEnd: integer); overload;
+begin
+  Pie(aX, aY, aR, aStart, aEnd, Color);
+end;
+
+procedure TSDLGfxSurface.Pie(aX, aY, aR, aStart, aEnd: integer; aColor: TRGBAColor); overload;
+begin
+  if Assigned then begin
+    pieColor(Surface, aX, aY, aR, aStart, aEnd, UInt32(aColor));
+  end;
+end;
+
+procedure TSDLGfxSurface.SolidPie(aX, aY, aR, aStart, aEnd: integer); overload;
+begin
+  SolidPie(aX, aY, aR, aStart, aEnd, Color);
+end;
+
+procedure TSDLGfxSurface.SolidPie(aX, aY, aR, aStart, aEnd: integer; aColor: TRGBAColor); overload;
+begin
+  if Assigned then begin
+    filledpieColor(Surface, aX, aY, aR, aStart, aEnd, UInt32(aColor));
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLGfxSurface.HorizontalLine(aX1, aX2, aY: integer); overload;
+begin
+  HorizontalLine(aX1, aX2, aY, Color);
+end;
+
+procedure TSDLGfxSurface.HorizontalLine(aX1, aX2, aY: integer; aColor: TRGBAColor); overload;
+begin
+  if Assigned then begin
+    hlineColor(Surface, aX1, aX2, aY, UInt32(aCOlor));
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLGfxSurface.VerticalLine(aX, aY1, aY2: integer); overload;
+begin
+  VerticalLine(aY1, aY2, aX, Color);
+end;
+
+procedure TSDLGfxSurface.VerticalLine(aX, aY1, aY2: integer; aColor: TRGBAColor); overload;
+begin
+  if Assigned then begin
+    vlineColor(Surface, aX, aY1, aY2, UInt32(aColor));
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLGfxSurface.Line(aX1, aY1, aX2, aY2: integer); overload;
+begin
+  Line(aX1, aY1, aX2, aY2, Color, AntiAliased);
+end;
+
+procedure TSDLGfxSurface.Line(aX1, aY1, aX2, aY2: integer; aColor: TRGBAColor; aAntiAliased: boolean); overload;
+begin
+  if Assigned then begin
+    if (aX1 = aX2) then
+      VerticalLine(aX1, aY1, aY2, aColor)
+    else if (aY1 = aY2) then
+      HorizontalLine(aX1, aX2, aY1, aColor)
+    else if aAntiAliased then
+      aalineColor(Surface, aX1, aY1, aX2, aY2, UInt32(aColor))
+    else
+      lineColor(Surface, aX1, aY1, aX2, aY2, UInt32(aColor))
+    ;
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLGfxSurface.Clear;
+begin
+  Fill(BackgroundColor);
+end;
+
+procedure TSDLGfxSurface.Fill; overload;
+begin
+  Fill(Color);
+end;
+
+procedure TSDLGfxSurface.Fill(aColor: TRGBAColor); overload;
+begin
+  Box(0, 0, Width, Height, aColor);
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLGfxSurface.WriteText(aX, aY: integer; aText: string; aFont: TSDLFont);
+var
+  aMsg: PSDL_Surface;
+begin
+  if Assigned then begin
+    if not aFont.Assigned then
+      raise ESDLError.Create('font has not been assigned or loaded');
+    ;
+
+    aMsg := aFont.Render(aText);
+    try
+      if (aMsg <> nil) then begin
+        ApplySurface(aX, aY, aMsg, Surface);
+      end;
+    finally
+      SDL_FreeSurface(aMsg);
+    end;
+  end;
+end;
+
+//******************************************************************************
+// TSDLScreen
+//******************************************************************************
+
+procedure TSDLScreen.SetMode(aWidth, aHeight, aBpp: integer; aFlags: Cardinal);
+begin
+  FSurface := SDL_SetVideoMode(aWidth, aHeight, aBpp, aFlags);
+  if (FSurface = nil) then raise ESDLError.Create(SDL_GetError);
+end;
+
+procedure TSDLScreen.Flip;
+begin
+  if Assigned then
+    HandleSDLError(SDL_Flip(Surface))
+  ;
+end;
+
+//******************************************************************************
+// TSDLBaseApp
+//******************************************************************************
+
+constructor TSDLBaseApp.Create(TheOwner: TComponent);
+begin
+  inherited Create(TheOwner);
+
+  FKeyRepeatDelay    := SDL_DEFAULT_REPEAT_DELAY;
+  FKeyRepeatInterval := SDL_DEFAULT_REPEAT_INTERVAL;
+
+  InitSDL;
+  InitTTF;
+  InitScreenParams;
+
+  Screen := TSDLScreen.Create; //<- singleton!
+  FTimer := TSDLTimer.Create;
+  FFont  := TSDLFont.Create;
+
+  FFPS := cDefaultFPS;
+
+  StopOnException := TRUE;
+end;
+
+destructor TSDLBaseApp.Destroy;
+begin
+  Screen.Free; //<- singleton!
+  FTimer.Free;
+  FFont.Free;
+
+  QuitSDL;
+  QuitTTF;
+
+  inherited;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLBaseApp.SetKeyRepeatDelay(aDelay: integer);
+begin
+  if (aDelay <> FKeyRepeatDelay) then begin
+    HandleSDLError(SDL_EnableKeyRepeat(aDelay, FKeyRepeatInterval));
+    FKeyRepeatDelay := aDelay;
+  end;
+end;
+
+procedure TSDLBaseApp.SetKeyRepeatInterval(aInterval: integer);
+begin
+  if (aInterval <> FKeyRepeatInterval) then begin
+    HandleSDLError(SDL_EnableKeyRepeat(FKeyRepeatDelay, aInterval));
+    FKeyRepeatInterval := aInterval;
+  end;
+end;
+
+//------------------------------------------------------------------------------
+// SDL
+//------------------------------------------------------------------------------
+
+procedure TSDLBaseApp.InitSDL;
+begin
+  InitSDL(SDL_INIT_EVERYTHING);
+end;
+
+procedure TSDLBaseApp.InitSDL(aFlags: Cardinal);
+begin
+  HandleSDLError(SDL_Init(aFlags));
+  HandleSDLError(SDL_EnableKeyRepeat(FKeyRepeatDelay, FKeyRepeatInterval));
+end;
+
+procedure TSDLBaseApp.QuitSDL;
+begin
+  SDL_Quit;
+end;
+
+procedure TSDLBaseApp.InitScreenParams;
+var
+  VideoInfo: PSDL_VideoInfo;
+begin
+  //*** get the current video mode
+  VideoInfo := SDL_GetVideoInfo;
+
+  FScrWidth    := VideoInfo^.current_w;
+  FScrHeight   := VideoInfo^.current_h;
+  FScrBpp      := VideoInfo^.vfmt^.BitsPerPixel;
+
+  FScrFlags := SDL_FULLSCREEN + SDL_DOUBLEBUF;
+
+  if (VideoInfo^.hw_available <> 0) then
+    FScrFlags  := FScrFlags + SDL_HWSURFACE
+  else
+    FScrFlags  := FScrFlags + SDL_SWSURFACE
+  ;
+end;
+
+procedure TSDLBaseApp.InitScreen;
+begin
+  // set the desired video mode
+  Screen.SetMode(ScrWidth, ScrHeight, ScrBpp, ScrFlags);
+end;
+
+//------------------------------------------------------------------------------
+// custom resources
+//------------------------------------------------------------------------------
+
+procedure TSDLBaseApp.InitCustomResources;
+begin
+  // override this to create/init SDL dependant resources
+end;
+
+procedure TSDLBaseApp.FreeCustomResources;
+begin
+  // override this to clean up your custom resources
+end;
+
+//------------------------------------------------------------------------------
+// TTF
+//------------------------------------------------------------------------------
+
+procedure TSDLBaseApp.InitTTF;
+begin
+  HandleSDLError(TTF_Init);
+end;
+
+procedure TSDLBaseApp.QuitTTF;
+begin
+  TTF_Quit;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLBaseApp.DoRun;
+begin
+  ProcessParams;
+
+  // set SDL params (here in DoRun to be able to react on command line parameters)
+  InitScreen;
+  // initialize custom stuff
+  InitCustomResources;
+
+  // execute the main program loop
+  MainLoop;
+
+  // clean up custom resources
+  FreeCustomResources;
+
+  // stop program loop
+  Terminate;
+end;
+
+procedure TSDLBaseApp.ProcessParams;
+begin
+  // does nothing by default
+end;
+
+procedure TSDLBaseApp.MainLoop;
+begin
+  // does nothing by default
+end;
+
+end.
+
+

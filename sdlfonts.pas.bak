@@ -1,0 +1,98 @@
+unit sdlfonts;
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils, sdl, sdl_ttf, sdltypes;
+
+type
+  //****************************************************************************
+  // class to represent a font
+  //****************************************************************************
+
+  TSDLFont = class
+  private
+    FFont: PTTF_Font;
+    FColor: TSDL_Color;
+    FBackgroundColor: TSDL_Color;
+    FSize: integer;
+    FRenderType: TSDLFontRenderType;
+  protected
+    function GetAssigned: boolean; virtual;
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    procedure Load(aFilename: TFilename);
+    function Render(aText: string): PSDL_Surface;
+
+    property Font: PTTF_Font read FFont;
+    property Color: TSDL_Color read FColor write FColor;
+    property BackgroundColor: TSDL_Color read FBackgroundColor write FBackgroundColor;
+    property Size: integer read FSize write FSize;
+    property RenderType: TSDLFontRenderType read FRenderType write FRenderType;
+    property Assigned: boolean read GetAssigned;
+  end;
+
+const
+  cDefaultFontSize = 12;
+
+implementation
+
+//******************************************************************************
+//*** TSDLFont
+//******************************************************************************
+
+constructor TSDLFont.Create;
+begin
+  inherited;
+  FFont            := nil;
+  FSize            := cDefaultFontSize;
+  FColor           := scWhite;
+  FBackgroundColor := scNone;
+  FRenderType      := frtSolid;
+end;
+
+destructor TSDLFont.Destroy;
+begin
+  if Assigned then
+    TTF_CloseFont(FFont)
+  ;
+  inherited;
+end;
+
+//------------------------------------------------------------------------------
+
+function TSDLFont.GetAssigned: boolean;
+begin
+  Result := (Font <> nil);
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLFont.Load(aFilename: TFilename);
+begin
+  FFont := TTF_OpenFont(PChar(aFilename), Size);
+end;
+
+function TSDLFont.Render(aText: string): PSDL_Surface;
+begin
+  Result := nil;
+
+  //*** render text depending on the fonts rendertype
+  if Assigned then begin
+    case RenderType of
+      frtSolid:
+        Result := TTF_RenderText_Solid(Font, PChar(aText), Color);
+      frtShaded:
+        Result := TTF_RenderText_Shaded(Font, PChar(aText), Color, BackgroundColor);
+      frtBlended:
+        Result := TTF_RenderText_Blended(Font, PChar(aText), Color);
+    end;
+  end;
+end;
+
+end.
+

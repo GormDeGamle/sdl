@@ -1,0 +1,146 @@
+unit sdltiles;
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils, sdl, sdlclasses, sdltools, sdltypes;
+
+type
+  //****************************************************************************
+  // tile management classes
+  //****************************************************************************
+
+  { TBaseTiles }
+
+  TBaseTiles = class(TSDLSurface)
+  private
+    FTileWidth: integer;
+    FTileHeight: integer;
+  protected
+    procedure SetTileSize(aSize: integer); virtual;
+    function GetTileCount: integer; virtual;
+    function GetRowCount: integer; virtual;
+    function GetColCount: integer; virtual;
+    function GetTileRow(aIndex: integer): integer; virtual;
+    function GetTileCol(aIndex: integer): integer; virtual;
+    function GetTileRect(aIndex: integer): TSDL_Rect; virtual;
+    function GetTileIndex(aRow, aCol: integer): integer; virtual;
+  public
+    constructor Create;
+
+    procedure RenderTileTo(aIndex: integer; aSurface: TSDLSurface); virtual; overload;
+    procedure RenderTileTo(aIndex, aX, aY: integer; aSurface: TSDLSurface); virtual; overload;
+
+    property TileWidth: integer read FTileWidth write FTileWidth;
+    property TileHeight: integer read FTileHeight write FTileHeight;
+    property TileSize: integer write SetTileSize;                               //<- sets width and height to the same value
+    property TileCount: integer read GetTileCount;                              //<- gets the number of tiles in the set
+    property RowCount: integer read GetRowCount;                                //<- gets the number of "tile rows"
+    property ColCount: integer read GetColCount;                                //<- gets the number of "tile columns"
+    property TileRow[aIndex: integer]: integer read GetTileRow;                 //<- row of a given tile
+    property TileCol[aIndex: integer]: integer read GetTileCol;                 //<- column of a given tile
+    property TileRect[aIndex: integer]: TSDL_Rect read GetTileRect;             //<- gets the rectangle of the given tile
+    property TileIndex[aRow, aCol: integer]: integer read GetTileIndex;         //<- transfer a row abd a column to an index
+  end;
+
+implementation
+
+//******************************************************************************
+// TBaseTiles
+//******************************************************************************
+
+constructor TBaseTiles.Create;
+begin
+  inherited Create;
+
+  FTileWidth := 0;
+  FTileHeight := 0;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TBaseTiles.SetTileSize(aSize: integer);
+begin
+  FTileWidth := aSize;
+  FTileHeight := aSize;
+end;
+
+function TBaseTiles.GetTileCount: integer;
+begin
+  Result := RowCount * ColCount;
+end;
+
+function TBaseTiles.GetRowCount: integer;
+begin
+  if (TileHeight > 0) then
+    Result := (Height div TileHeight)
+  else
+    Result := 0;
+  ;
+end;
+
+function TBaseTiles.GetColCount: integer;
+begin
+  if (TileWidth > 0) then
+    Result := (Width div TileWidth)
+  else
+    Result := 0;
+  ;
+end;
+
+function TBaseTiles.GetTileRow(aIndex: integer): integer;
+begin
+  if (Width >= TileWidth) and (Height >= TileHeight) then
+    Result := aIndex div ColCount
+  else
+    Result := 0
+  ;
+end;
+
+function TBaseTiles.GetTileCol(aIndex: integer): integer;
+begin
+  if (Width >= TileWidth) and (Height >= TileHeight) then
+    Result := aIndex - TileRow[aIndex] * ColCount
+  else
+    Result := 0
+  ;
+end;
+
+function TBaseTiles.GetTileRect(aIndex: integer): TSDL_Rect;
+begin
+  if (aIndex < 0) or (aIndex > TileCount - 1) then
+    raise ESDLTileError.Create('Tile index ' + IntToStr(aIndex) + ' out of bounds')
+  ;
+
+  if (Width >= TileWidth) and (Height >= TileHeight) then begin
+    Result.x := TileCol[aIndex] * TileWidth;
+    Result.y := TileRow[aIndex] * TileHeight;
+    Result.w := TileWidth;
+    Result.h := TileHeight;
+  end;
+end;
+
+function TBaseTiles.GetTileIndex(aRow, aCol: integer): integer;
+begin
+  Result := aRow * ColCount + aCol;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TBaseTiles.RenderTileTo(aIndex: integer; aSurface: TSDLSurface);
+begin
+  RenderTileTo(aIndex, 0, 0, aSurface);
+end;
+
+procedure TBaseTiles.RenderTileTo(aIndex, aX, aY: integer; aSurface: TSDLSurface);
+var
+  aRect: TSDL_Rect;
+begin
+  aRect := TileRect[aIndex];                                                    //<- get the coordinates of the tile
+  ApplySurface(aX, aY, Surface, aSurface.Surface, @aRect);                      //<- blit it to the surface
+end;
+
+end.
+

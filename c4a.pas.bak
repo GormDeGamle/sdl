@@ -1,0 +1,144 @@
+unit c4a;
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils, Process, highscores;
+
+type
+
+  //****************************************************************************
+  //** class for dealing with c4a stuff using the Fusilli Client (fc) by Ziz
+  //****************************************************************************
+
+  TC4A = class
+  protected
+    FGame: string;
+
+    FIsAvailable: boolean;
+    FLongName: string;
+    FShortName: string;
+    FPassWord: string;
+    FEMail: string;
+    FPRID: string;
+
+    FScores: TScoreList;
+    FProcess: TProcess;
+
+    procedure Init; virtual;
+    function GetClientOutput: TStringList; virtual;                             //<- creates a new TStringList that must be freed later on
+  public
+    constructor Create(aGame: string; aCount: integer);
+    destructor Destroy; override;
+
+    procedure Pull; virtual;
+    procedure Push(aScore: integer); virtual;
+
+    property Game: string read FGame;
+    property isAvailable: boolean read FIsAvailable;
+    property LongName: string read FLongName;
+    property ShortName: string read FShortName;
+    property PassWord: string read FPassWord;
+    property EMail: string read FEMail;
+    property PRID: string read FPRID;
+  end;
+
+const
+  {$IFDEF WINDOWS}
+  cFc = '.\fc.exe';
+  {$ELSE}
+  cFc = './fc';
+  {$ENDIF}
+
+implementation
+
+//******************************************************************************
+//** TC4A
+//******************************************************************************
+
+constructor TC4A.Create(aGame: string; aCount: integer);
+begin
+  inherited Create;
+
+  FScores  := TScoreList.Create(aCount);
+  FGame    := aGame;
+
+  // worker process for the Fusilli Client
+  FProcess := TProcess.Create(nil);
+  FProcess.Executable := cFc;
+  FProcess.Options    := FProcess.Options + [poNoConsole, poUsePipes];
+
+  Init;
+end;
+
+destructor TC4A.Destroy;
+begin
+  // Todo: wait for end of process if still running...
+  if FProcess.Running then FProcess.Terminate(-1);
+  FProcess.Free;
+  FScores.Free;
+  inherited;
+end;
+
+procedure TC4A.Init;
+var
+  aResult: TStringList;
+begin
+  FProcess.Options := FProcess.Options + [poWaitOnExit];
+  try
+    // query C4A profile
+    FProcess.Parameters.Add('about');
+    FProcess.Parameters.Add('all');
+
+    FProcess.Execute;
+
+    aResult := GetClientOutput;
+    try
+
+      FIsAvailable := aResult.Count > 0;
+      if aResult.Count >= 1 then FLongName  := aResult[0];
+      if aResult.Count >= 2 then FShortName := aResult[1];
+      if aResult.Count >= 3 then FPassWord  := aResult[2];
+      if aResult.Count >= 4 then FEMail     := aResult[3];
+      if aResult.Count >= 5 then FPRID      := aResult[4];
+
+    finally
+      aResult.Free;
+    end;
+  finally
+    FProcess.Options := FProcess.Options - [poWaitOnExit];
+  end;
+end;
+
+function TC4A.GetClientOutput: TStringList;
+begin
+  Result := TStringList.Create;
+  {$IFDEF WINDOWS}
+  if FileExists('.\stdout.txt') then Result.LoadFromFile('.\stdout.txt');
+  {$ELSE}
+  Result.LoadFromStream(FProcess.Output);
+  {$ENDIF}
+end;
+
+//------------------------------------------------------------------------------
+//-- get high scores from server
+//------------------------------------------------------------------------------
+
+procedure TC4A.Pull;
+begin
+
+end;
+
+//------------------------------------------------------------------------------
+//-- get high scores from server
+//------------------------------------------------------------------------------
+
+procedure TC4A.Push(aScore: integer);
+begin
+
+end;
+
+end.
+

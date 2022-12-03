@@ -1,0 +1,397 @@
+unit sdlgui;
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils, sdl, sdltypes, sdlclasses, sdlsprites, sdltools, sdlfonts,
+  inifiles, highscores;
+
+type
+
+  //****************************************************************************
+  // box with title and text
+  //****************************************************************************
+
+  TInfoBox = class(TMovingGfxSprite)
+  private
+    FText: string;
+    FTitle: string;
+    FFont: TSDLFont;
+    FTitleFont: TSDLFont;
+    FBorderWidth: integer;
+  public
+    constructor Create(aX, aY, aWidth, aHeight: integer; aBackgroundColor: TRGBAColor; aTitle: string; aScreen: TSDLScreen);
+
+    procedure RenderTo(aSurface: TSDLSurface); override;
+
+    property BorderWidth: integer read FBorderWidth write FBorderWidth;
+    property Font: TSDLFont read FFont write FFont;
+    property TitleFont: TSDLFont read FTitleFont write FTitleFont;
+    property Title: string read FTitle write FTitle;
+    property Text: string read FText write FText;
+  end;
+
+  //****************************************************************************
+  // info box that can be saved/loaded
+  //****************************************************************************
+
+  TPersistentInfoBox = class(TInfoBox)
+  protected
+    FSaveFile: string;
+    FSaveSection: string;
+    FSaveID: string;
+  public
+    constructor Create(aX, aY, aWidth, aHeight: integer; aBackgroundColor: TRGBAColor; aTitle: string; aScreen: TSDLScreen);
+
+    procedure DoSaveTo(aCfg: TIniFile; aSection, aID: string); virtual;
+    procedure DoLoadFrom(aCfg: TIniFile; aSection, aID: string); virtual;
+    procedure SaveTo(aFile, aSection, aID: string); virtual;
+    procedure LoadFrom(aFile, aSection, aID: string); virtual;
+    procedure Save; virtual;
+    procedure Load; virtual;
+
+    property SaveFile: string read FSaveFile write FSaveFile;
+    property SaveSection: string read FSaveSection write FSaveSection;
+    property SaveID: string read FSaveID write FSaveID;
+  end;
+
+  //****************************************************************************
+  // box to show the score
+  //****************************************************************************
+
+  TScoreBox = class(TPersistentInfoBox)
+  private
+    FScore: integer;
+    FHighScore: TScoreBox;
+  protected
+    procedure SetScore(aValue: integer); virtual;
+  public
+    constructor Create(aX, aY, aWidth, aHeight: integer; aBackgroundColor: TRGBAColor; aTitle: string; aScreen: TSDLScreen);
+
+    procedure Reset; virtual;
+    procedure Add(aValue: integer); virtual;
+
+    procedure DoSaveTo(aCfg: TIniFile; aSection, aID: string); override;
+    procedure DoLoadFrom(aCfg: TIniFile; aSection, aID: string); override;
+
+    property Score: integer read FScore write SetScore;
+    property HighScore: TScoreBox read FHighScore write FHighScore;
+  end;
+
+  //****************************************************************************
+  // box to show high scores
+  //****************************************************************************
+
+  TScoreListBox = class(TPersistentInfoBox)
+  protected
+    FScores: TScoreList;
+  public
+    constructor Create(aX, aY, aWidth, aHeight: integer; aBackgroundColor: TRGBAColor; aTitle: string; aCount: integer; aScreen: TSDLScreen);
+    destructor Destroy; override;
+
+    procedure DoSaveTo(aCfg: TIniFile; aSection, aID: string); override;
+    procedure DoLoadFrom(aCfg: TIniFile; aSection, aID: string); override;
+
+    procedure RenderTo(aSurface: TSDLSurface); override;
+
+    property Scores: TScoreList read FScores;
+  end;
+
+implementation
+
+//******************************************************************************
+// TInfoBox
+//******************************************************************************
+
+constructor TInfoBox.Create(aX, aY, aWidth, aHeight: integer; aBackgroundColor: TRGBAColor; aTitle: string; aScreen: TSDLScreen);
+begin
+  inherited Create;
+
+  X := aX;
+  Y := aY;
+  FTitle := aTitle;
+  FText  := '';
+
+  FFont := nil;
+  FTitleFont := nil;
+
+  FBorderWidth := 8;
+
+  //create a surface for the box
+  Surface := SDL_CreateRGBSurface(
+    0,
+    aWidth,
+    aHeight,
+    aScreen.Surface^.format^.BitsPerPixel,
+    aScreen.Surface^.format^.RMask,
+    aScreen.Surface^.format^.GMask,
+    aScreen.Surface^.format^.BMask,
+    aScreen.Surface^.format^.AMask
+  );
+  BackgroundColor := aBackgroundColor;
+end;
+
+//------------------------------------------------------------------------------
+// rendering
+//------------------------------------------------------------------------------
+
+procedure TInfoBox.RenderTo(aSurface: TSDLSurface);
+var
+  aMsg: PSDL_Surface;
+begin
+  Clear;
+  //*** title
+  if (TitleFont <> nil) then begin
+    TitleFont.Color := Font.Color;
+    WriteText(BorderWidth, BorderWidth, Title, TitleFont);
+  end;
+  //*** text
+  if Assigned and (Font <> nil) then begin
+    if not Font.Assigned then
+      raise ESDLError.Create('font has not been assigned or loaded');
+    ;
+
+    aMsg := Font.Render(Text);
+    try
+      if (aMsg <> nil) then begin
+        ApplySurface(
+          Width - BorderWidth - aMsg^.w,
+          Height - BorderWidth - aMsg^.h,
+          aMsg,
+          Surface
+        );
+      end;
+    finally
+      SDL_FreeSurface(aMsg);
+    end;
+  end;
+  //*** show
+  RenderTo(x, y, aSurface);
+end;
+
+//******************************************************************************
+// TPersistentInfoBox
+//******************************************************************************
+
+constructor TPersistentInfoBox.Create(aX, aY, aWidth, aHeight: integer; aBackgroundColor: TRGBAColor; aTitle: string; aScreen: TSDLScreen);
+begin
+  inherited Create(aX, aY, aWidth, aHeight, aBackgroundColor, aTitle, aScreen);
+
+  FSaveFile := '';
+  FSaveSection := '';
+  FSaveID := '';
+end;
+
+procedure TPersistentInfoBox.DoSaveTo(aCfg: TIniFile; aSection, aID: string);
+begin
+  aCfg.WriteString(aSection, aID, Text);
+end;
+
+procedure TPersistentInfoBox.DoLoadFrom(aCfg: TIniFile; aSection, aID: string);
+begin
+  Text := aCfg.ReadString(aSection, aID, Text);
+end;
+
+procedure TPersistentInfoBox.SaveTo(aFile, aSection, aID: string);
+var
+  aCfg: TIniFile;
+begin
+  aCfg := TIniFile.Create(aFile);
+  try
+    DoSaveTo(aCfg, aSection, aID);
+  finally
+    aCfg.Free;
+  end;
+end;
+
+procedure TPersistentInfoBox.LoadFrom(aFile, aSection, aID: string);
+var
+  aCfg: TIniFile;
+begin
+  aCfg := TIniFile.Create(aFile);
+  try
+    DoLoadFrom(aCfg, aSection, aID);
+  finally
+    aCfg.Free;
+  end;
+end;
+
+procedure TPersistentInfoBox.Save;
+begin
+  if SaveFile <> '' then begin
+    SaveTo(SaveFile, SaveSection, SaveID);
+  end;
+end;
+
+procedure TPersistentInfoBox.Load;
+begin
+  if SaveFile <> '' then begin
+    LoadFrom(SaveFile, SaveSection, SaveID);
+  end;
+end;
+
+//******************************************************************************
+// TScoreBox
+//******************************************************************************
+
+constructor TScoreBox.Create(aX, aY, aWidth, aHeight: integer; aBackgroundColor: TRGBAColor; aTitle: string; aScreen: TSDLScreen);
+begin
+  inherited Create(aX, aY, aWidth, aHeight, aBackgroundColor, aTitle, aScreen);
+
+  FSaveSection := 'Score';
+  FSaveID := 'Score';
+
+  FHighScore := nil;
+
+  Reset;
+end;
+
+//------------------------------------------------------------------------------
+// properties
+//------------------------------------------------------------------------------
+
+procedure TScoreBox.SetScore(aValue: integer);
+begin
+  FScore := aValue;
+  Text := IntToStr(FScore);
+  if (HighScore <> nil) then begin
+    if FScore > HighScore.Score then begin
+      HighScore.Score := FScore;
+    end;
+  end;
+end;
+
+//------------------------------------------------------------------------------
+// scores
+//------------------------------------------------------------------------------
+
+procedure TScoreBox.Reset;
+begin
+  Score := 0;
+end;
+
+procedure TScoreBox.Add(aValue: integer);
+begin
+  Score := Score + aValue;
+end;
+
+procedure TScoreBox.DoSaveTo(aCfg: TIniFile; aSection, aID: string);
+begin
+  aCfg.WriteInteger(aSection, aID, Score);
+end;
+
+procedure TScoreBox.DoLoadFrom(aCfg: TIniFile; aSection, aID: string);
+begin
+  Score := aCfg.ReadInteger(aSection, aID, Score);
+end;
+
+//******************************************************************************
+// TScoreListBox
+//******************************************************************************
+
+constructor TScoreListBox.Create(aX, aY, aWidth, aHeight: integer; aBackgroundColor: TRGBAColor; aTitle: string; aCount: integer; aScreen: TSDLScreen);
+begin
+  inherited Create(aX, aY, aWidth, aHeight, aBackgroundColor, aTitle, aScreen);
+
+  FScores := TScoreList.Create(aCount);
+
+  FSaveSection := 'Score';
+end;
+
+destructor TScoreListBox.Destroy;
+begin
+  FScores.Free;
+  inherited;
+end;
+
+//------------------------------------------------------------------------------
+// save / load
+//------------------------------------------------------------------------------
+
+procedure TScoreListBox.DoSaveTo(aCfg: TIniFile; aSection, aID: string);
+begin
+  Scores.DoSaveTo(aCfg, aSection, aID);
+end;
+
+procedure TScoreListBox.DoLoadFrom(aCfg: TIniFile; aSection, aID: string);
+begin
+  Scores.DoLoadFrom(aCfg, aSection, aID);
+end;
+
+//------------------------------------------------------------------------------
+// render
+//------------------------------------------------------------------------------
+
+procedure TScoreListBox.RenderTo(aSurface: TSDLSurface);
+var
+  ii, TitleHeight, LineHeight: integer;
+  aMsg: PSDL_Surface;
+begin
+  Clear;
+  // title
+  if (TitleFont <> nil) then begin
+    TitleFont.Color := Font.Color;
+    aMsg := TitleFont.Render(Title);
+    try
+      if (aMsg <> nil) then begin
+        TitleHeight := aMsg^.h;
+        ApplySurface(
+          BorderWidth,
+          BorderWidth,
+          aMsg,
+          Surface
+        );
+      end;
+    finally
+      SDL_FreeSurface(aMsg);
+    end;
+  end;
+  // scores
+  if Assigned and (Font <> nil) then begin
+    if not Font.Assigned then
+      raise ESDLError.Create('font has not been assigned or loaded');
+    ;
+
+    for ii := 0 to Scores.Count - 1 do begin
+      // name
+      aMsg := Font.Render(IntToStr(ii + 1) + '. ' + Scores.Entry[ii].Name);
+      LineHeight := aMsg^.h;
+      try
+        if (aMsg <> nil) then begin
+          ApplySurface(
+            BorderWidth,
+            2 * BorderWidth + TitleHeight + ii * LineHeight,
+            aMsg,
+            Surface
+          );
+        end;
+      finally
+        SDL_FreeSurface(aMsg);
+      end;
+
+      // score
+      if Scores.Entry[ii].Score <> 0 then begin
+        aMsg := Font.Render(IntToStr(Scores.Entry[ii].Score));
+        try
+          if (aMsg <> nil) then begin
+            ApplySurface(
+              Width - BorderWidth - aMsg^.w,
+              2 * BorderWidth + TitleHeight + ii * LineHeight,
+              aMsg,
+              Surface
+            );
+          end;
+        finally
+          SDL_FreeSurface(aMsg);
+        end;
+      end;
+    end;
+  end;
+  // show
+  RenderTo(x, y, aSurface);
+end;
+
+end.
+

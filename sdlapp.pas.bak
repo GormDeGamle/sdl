@@ -1,0 +1,312 @@
+unit sdlapp;
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils, CustApp, sdl, sdltypes, sdlclasses, sdltimer,
+  sdltools;
+
+type
+
+  //****************************************************************************
+  //*** SDL application
+  //****************************************************************************
+
+  TSDLApp = class(TSDLBaseApp)
+  private
+    FEvent: TSDL_Event;
+
+    //*** properties
+    function GetTicks: integer;
+  protected
+    procedure ProcessParams; override;
+    procedure WriteHelp; virtual;
+
+    //*** main game loop
+    procedure MainLoop; override;
+
+    //*** events (called by HandleEvent)
+    procedure OnActive(aActive: TSDL_ActiveEvent); virtual;
+    procedure OnKeyDown(aKey: TSDL_KeyboardEvent); virtual;
+    procedure OnKeyUp(aKey: TSDL_KeyboardEvent); virtual;
+    procedure OnMouseMotion(aMotion: TSDL_MouseMotionEvent); virtual;
+    procedure OnMouseButtonDown(aButton: TSDL_MouseButtonEvent); virtual;
+    procedure OnMouseButtonUp(aButton: TSDL_MouseButtonEvent); virtual;
+    procedure OnJoyAxisMotion(aJAxis: TSDL_JoyAxisEvent); virtual;
+    procedure OnJoyBallMotion(aJBall: TSDL_JoyBallEvent); virtual;
+    procedure OnJoyHatMotion(aJHat: TSDL_JoyHatEvent); virtual;
+    procedure OnJoyButtonDown(aJButton: TSDL_JoyButtonEvent); virtual;
+    procedure OnJoyButtonUp(aJButton: TSDL_JoyButtonEvent); virtual;
+    procedure OnVideoResize(aResize: TSDL_ResizeEvent); virtual;
+    procedure OnVideoExpose(aExpose: TSDL_ExposeEvent); virtual;
+    procedure OnQuit(aQuit: TSDL_QuitEvent); virtual;
+    procedure OnUser(aUser: TSDL_UserEvent); virtual;
+    procedure OnSysWM(aSysWM: TSDL_SysWMEvent); virtual;
+
+    property Ticks: integer read GetTicks;                                      //<- ticks (ms) since start
+  public
+    SysInfo: TSysinfo;
+
+    constructor Create(TheOwner: TComponent); override;
+    destructor Destroy; override;
+
+    procedure HandleEvents; virtual;                                            //<- process sdl events
+    procedure Update; virtual;                                                  //<- do calculations and stuff
+    procedure Render; virtual;                                                  //<- render current scene
+    procedure RenderSysInfo; virtual;                                           //<- add some info on top of the rendered scene (FPS etc.)
+    procedure Flip; virtual;
+
+    property Event: TSDL_Event read FEvent;                                     //<- current/last SDL event
+  end;
+
+implementation
+
+//******************************************************************************
+//*** TSDLApp
+//******************************************************************************
+
+constructor TSDLApp.Create(TheOwner: TComponent);
+begin
+  inherited Create(TheOwner);
+
+  with SysInfo do
+  begin
+    FPS := 0;
+    DoShow := False;
+    DoUpdate := True;
+    UpdateInterval := cDefaultSysInfoInterval;
+    LastUpdate := 0;
+  end;
+end;
+
+destructor TSDLApp.Destroy;
+begin
+  inherited Destroy;
+end;
+
+//------------------------------------------------------------------------------
+// properties
+//------------------------------------------------------------------------------
+
+function TSDLApp.GetTicks: integer;
+begin
+  Result := SDL_GetTicks;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TSDLApp.ProcessParams;
+var
+  ErrorMsg: string;
+begin
+  //*** quick check parameters
+  ErrorMsg := CheckOptions('h', 'help');
+  if ErrorMsg <> '' then
+  begin
+    ShowException(Exception.Create(ErrorMsg));
+    Terminate;
+    Exit;
+  end;
+
+  //*** parse parameters
+  if HasOption('h', 'help') then
+  begin
+    WriteHelp;
+    Terminate;
+    Exit;
+  end;
+end;
+
+procedure TSDLApp.WriteHelp;
+begin
+  { add your help code here }
+  writeln('Usage: ', ExeName, ' -h');
+end;
+
+//------------------------------------------------------------------------------
+// main loop
+//------------------------------------------------------------------------------
+
+procedure TSDLApp.MainLoop;
+begin
+  //*** main program loop
+  while not Terminated do
+  begin
+
+    Timer.Start;
+
+    HandleEvents;
+    Update;
+    Render;
+
+    Timer.Limit(FPS);
+
+    RenderSysInfo;
+
+    Flip;
+  end;
+end;
+
+//------------------------------------------------------------------------------
+// events
+//------------------------------------------------------------------------------
+
+procedure TSDLApp.HandleEvents;
+begin
+  //*** handle SDL events
+  while SDL_PollEvent(@FEvent) <> 0 do
+  begin
+    case FEvent.type_ of
+      SDL_ACTIVEEVENT:
+        OnActive(FEvent.active);
+      SDL_KEYDOWN:
+        OnKeyDown(FEvent.key);
+      SDL_KEYUP:
+        OnKeyUp(FEvent.key);
+      SDL_MOUSEMOTION:
+        OnMouseMotion(FEvent.motion);
+      SDL_MOUSEBUTTONDOWN:
+        OnMouseButtonDown(FEvent.button);
+      SDL_MOUSEBUTTONUP:
+        OnMouseButtonUp(FEvent.button);
+      SDL_JOYAXISMOTION:
+        OnJoyAxisMotion(FEvent.jaxis);
+      SDL_JOYBALLMOTION:
+        OnJoyBallMotion(FEvent.jball);
+      SDL_JOYHATMOTION:
+        OnJoyHatMotion(FEvent.jhat);
+      SDL_JOYBUTTONDOWN:
+        OnJoyButtonDown(FEvent.jbutton);
+      SDL_JOYBUTTONUP:
+        OnJoyButtonUp(FEvent.jbutton);
+      SDL_VIDEORESIZE:
+        OnVideoResize(FEvent.resize);
+      //SDL_VIDEOEXPOSE:
+      //  OnVideoExpose(FEvent.expose); //<- expose is not defined?!
+      SDL_QUITEV:
+        OnQuit(FEvent.quit);
+      SDL_USEREVENT:
+        OnUser(FEvent.user);
+      SDL_SYSWMEVENT:
+        OnSysWM(FEvent.syswm);
+    end;
+  end;
+end;
+
+procedure TSDLApp.OnActive(aActive: TSDL_ActiveEvent);
+begin
+end;
+
+procedure TSDLApp.OnKeyDown(aKey: TSDL_KeyboardEvent);
+begin
+end;
+
+procedure TSDLApp.OnKeyUp(aKey: TSDL_KeyboardEvent);
+begin
+end;
+
+procedure TSDLApp.OnMouseMotion(aMotion: TSDL_MouseMotionEvent);
+begin
+end;
+
+procedure TSDLApp.OnMouseButtonDown(aButton: TSDL_MouseButtonEvent);
+begin
+end;
+
+procedure TSDLApp.OnMouseButtonUp(aButton: TSDL_MouseButtonEvent);
+begin
+end;
+
+procedure TSDLApp.OnJoyAxisMotion(aJAxis: TSDL_JoyAxisEvent);
+begin
+end;
+
+procedure TSDLApp.OnJoyBallMotion(aJBall: TSDL_JoyBallEvent);
+begin
+end;
+
+procedure TSDLApp.OnJoyHatMotion(aJHat: TSDL_JoyHatEvent);
+begin
+end;
+
+procedure TSDLApp.OnJoyButtonDown(aJButton: TSDL_JoyButtonEvent);
+begin
+end;
+
+procedure TSDLApp.OnJoyButtonUp(aJButton: TSDL_JoyButtonEvent);
+begin
+end;
+
+procedure TSDLApp.OnVideoResize(aResize: TSDL_ResizeEvent);
+begin
+end;
+
+procedure TSDLApp.OnVideoExpose(aExpose: TSDL_ExposeEvent);
+begin
+end;
+
+procedure TSDLApp.OnQuit(aQuit: TSDL_QuitEvent);
+begin
+  Terminate;
+end;
+
+procedure TSDLApp.OnUser(aUser: TSDL_UserEvent);
+begin
+end;
+
+procedure TSDLApp.OnSysWM(aSysWM: TSDL_SysWMEvent);
+begin
+end;
+
+//------------------------------------------------------------------------------
+// processing
+//------------------------------------------------------------------------------
+
+procedure TSDLApp.Update;
+begin
+end;
+
+//------------------------------------------------------------------------------
+// rendering
+//------------------------------------------------------------------------------
+
+procedure TSDLApp.Render;
+begin
+  //*** render screen output
+end;
+
+procedure TSDLApp.RenderSysInfo;
+begin
+  //calculate values?
+  if SysInfo.DoUpdate then
+  begin
+    if (Ticks - SysInfo.LastUpdate) >= SysInfo.UpdateInterval then
+    begin
+
+      if Timer.Ticks <> 0 then
+        SysInfo.FPS := Trunc(1000 / Timer.Ticks)
+      else
+        SysInfo.FPS := 99999 //<- dummy
+      ;
+
+      SysInfo.LastUpdate := Self.Ticks;
+    end;
+  end;
+
+  //show values?
+  if SysInfo.DoShow then
+  begin
+
+    Screen.WriteText(0, 0, 'FPS: ' + Format('%5d', [SysInfo.FPS]), Font);
+
+  end;
+end;
+
+procedure TSDLApp.Flip;
+begin
+  Screen.Flip;
+end;
+
+end.

@@ -1,0 +1,276 @@
+unit sdlboards;
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils, sdlclasses, sdltiles, sdltypes;
+
+type
+  //****************************************************************************
+  // classes for building rasters made of tiles
+  //****************************************************************************
+
+  { TBaseBoard }
+
+  TBaseBoard = class
+  private
+    FPos: TVector2DInt;
+    FSize: TVector2DInt;
+    FField: array of integer;
+    function GetColCount: integer;
+    function GetRowCount: integer;
+  protected
+    function GetX: integer; virtual;
+    procedure SetX(aX: integer); virtual;
+    function GetY: integer; virtual;
+    procedure SetY(aY: integer); virtual;
+    procedure SetPos(aPos: TVector2DInt); virtual;
+    procedure SetColCount(aCount: integer); virtual;
+    procedure SetRowCount(aCount: integer); virtual;
+    procedure SetSize(aSize: TVector2DInt); virtual;
+    function GetField(aCol, aRow: integer): integer; virtual;
+    procedure SetField(aCol, aRow, aValue: integer); virtual;
+    function GetFieldByIndex(aIndex: integer): integer; virtual;
+    procedure SetFieldByIndex(aIndex, aValue: integer); virtual;
+
+    procedure InitFields; virtual;
+  public
+    constructor Create;
+
+    procedure Load(const aFileName: string);
+
+    procedure RenderTo(aSurface: TSDLSurface); virtual; overload;
+    procedure RenderTo(aX, aY: integer; aSurface: TSDLSurface); virtual; overload;
+
+    property x: integer read GetX write SetX;
+    property y: integer read GetY write SetY;
+    property Pos: TVector2DInt read FPos write SetPos;
+    property ColCount: integer read GetColCount write SetColCount;
+    property RowCount: integer read GetRowCount write SetRowCount;
+    property Size: TVector2DInt read FSize write SetSize;
+    property Field[aCol, aRow: integer]: integer read GetField write SetField;
+    property FieldByIndex[aIndex: integer]: integer read GetFieldByIndex write SetFieldByIndex;
+  end;
+
+  { TTileBoard }
+
+  TTileBoard = class(TBaseBoard)
+  private
+    FTiles: TBaseTiles;
+  public
+    constructor Create(aTiles: TBaseTiles);
+
+    procedure RenderTo(aX, aY: integer; aSurface: TSDLSurface); override;
+
+    property Tiles: TBaseTiles read FTiles;                                     //<- tile set containing the images for the board
+  end;
+
+implementation
+
+//******************************************************************************
+// TBaseBoard
+//******************************************************************************
+
+constructor TBaseBoard.Create;
+begin
+  inherited Create;
+
+  FPos  := NullVector2DInt;
+  FSize := NullVector2DInt;
+end;
+
+//------------------------------------------------------------------------------
+
+function TBaseBoard.GetColCount: integer;
+begin
+  Result := FSize.x;
+end;
+
+function TBaseBoard.GetRowCount: integer;
+begin
+  Result := FSize.y;
+end;
+
+function TBaseBoard.GetX: integer;
+begin
+  Result := FPos.x;
+end;
+
+procedure TBaseBoard.SetX(aX: integer);
+begin
+  FPos.x := aX;
+end;
+
+function TBaseBoard.GetY: integer;
+begin
+  Result := FPos.y;
+end;
+
+procedure TBaseBoard.SetY(aY: integer);
+begin
+  FPos.y := aY;
+end;
+
+procedure TBaseBoard.SetPos(aPos: TVector2DInt);
+begin
+  FPos := aPos;
+end;
+
+procedure TBaseBoard.SetColCount(aCount: integer);
+begin
+  FSize.x := aCount;
+  InitFields;
+end;
+
+procedure TBaseBoard.SetRowCount(aCount: integer);
+begin
+  FSize.y := aCount;
+  InitFields;
+end;
+
+procedure TBaseBoard.SetSize(aSize: TVector2DInt);
+begin
+  FSize := aSize;
+  InitFields
+end;
+
+function TBaseBoard.GetField(aCol, aRow: integer): integer;
+begin
+  if (aCol >= ColCount) or (aRow >= RowCount) then
+    raise EBoardError.Create('Invalid Position (' + IntToStr(aCol) + ', ' + IntToStr(aRow) + ')')
+  ;
+  Result := FField[aRow * ColCount + aCol];
+end;
+
+procedure TBaseBoard.SetField(aCol, aRow, aValue: integer);
+begin
+  if (aCol >= ColCount) or (aRow >= RowCount) then
+    raise EBoardError.Create('Invalid Position (' + IntToStr(aCol) + ', ' + IntToStr(aRow) + ')')
+  ;
+  FField[aRow * ColCount + aCol] := aValue;
+end;
+
+function TBaseBoard.GetFieldByIndex(aIndex: integer): integer;
+begin
+  if aIndex >= Length(FField) then
+    raise EBoardError.Create('Invalid Index (' + IntToStr(aindex) + ')')
+  ;
+  Result := FField[aIndex];
+end;
+
+procedure TBaseBoard.SetFieldByIndex(aIndex, aValue: integer);
+begin
+  if aIndex >= Length(FField) then
+    raise EBoardError.Create('Invalid Index (' + IntToStr(aindex) + ')')
+  ;
+  FField[aIndex] := aValue;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TBaseBoard.InitFields;
+begin
+  SetLength(FField, FSize.x * FSize.y);
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TBaseBoard.Load(const aFileName: string);
+var
+  ii, jj, aValue: integer;
+  aSize: TVector2DInt;
+  aFile: TStringList;
+  aLine: TStringList;
+begin
+  //*** load tile indexes from a comma-separated text file
+  aLine := nil;
+
+  aFile := TStringList.Create;
+  aLine := TStringList.Create;
+  try
+    aFile.LoadFromFile(aFileName);
+
+    for ii := 0 to aFile.Count - 1 do begin
+      aLine.CommaText := aFile[ii];
+      for jj := 0 to aLine.Count - 1 do begin
+        //*** get board size from  file
+        if (ii = 0) and (jj = 0) then begin
+          aSize.x := aLine.Count;
+          aSize.y := aFile.Count;
+
+          Size := aSize;
+        end;
+
+        //*** set tile index per field
+        if TryStrToInt(aLine[jj], aValue) then
+          Field[jj, ii] := aValue
+        else
+          Field[jj, ii] := -1
+        ;
+      end;
+    end;
+  finally
+    aLine.Free;
+    aFile.Free;
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TBaseBoard.RenderTo(aSurface: TSDLSurface);
+begin
+  RenderTo(X, Y, aSurface);
+end;
+
+procedure TBaseBoard.RenderTo(aX, aY: integer; aSurface: TSDLSurface);
+begin
+  // Does nothing yet
+end;
+
+//******************************************************************************
+// TTileBoard
+//******************************************************************************
+
+constructor TTileBoard.Create(aTiles: TBaseTiles);
+begin
+  inherited Create;
+
+  FTiles := aTiles;
+end;
+
+procedure TTileBoard.RenderTo(aX, aY: integer; aSurface: TSDLSurface);
+var
+  ii: integer;
+  aXPos, aYPos: integer;
+begin
+  inherited RenderTo(aX, aY, aSurface);
+
+  //*** Draw the complete board
+  aXPos := aX;
+  aYPos := aY;
+
+  for ii := 0 to Length(FField) - 1 do begin
+
+    if FField[ii] >= 0 then begin //*** -1 = empty tile
+      Tiles.RenderTileTo(
+        FField[ii],
+        aXPos, aYPos,
+        aSurface
+      );
+    end;
+
+    inc(aXPos, Tiles.TileWidth);
+
+    if  ((ii + 1) mod Size.x = 0) //*** new row
+    and (ii > 0)
+    then begin
+      inc(aYPos, Tiles.TileHeight);
+      aXPos := aX;
+    end;
+  end;
+end;
+
+end.
+

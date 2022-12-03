@@ -1,0 +1,960 @@
+unit sdlsprites;
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils, sdl, sdl_gfx, sdlclasses, sdltiles, sdltools, sdltypes, Math;
+
+type
+  //****************************************************************************
+  // simple sprite class
+  //****************************************************************************
+
+  { TBaseSprite }
+
+  TBaseSprite = class(TSDLFlexSurface)
+  private
+    FPos: TVector2DInt;
+  protected
+    function GetX: integer; virtual;
+    procedure SetX(aX: integer); virtual;
+    function GetY: integer; virtual;
+    procedure SetY(aY: integer); virtual;
+    procedure SetPos(aPos: TVector2DInt); virtual;
+  public
+    constructor Create;
+
+    procedure RenderTo(aSurface: TSDLSurface); override;
+
+    property x: integer read GetX write SetX;
+    property y: integer read GetY write SetY;
+    property Pos: TVector2DInt read FPos write SetPos;
+  end;
+
+  //****************************************************************************
+  // sprite that can be painted on
+  //****************************************************************************
+
+  { TBaseSGfxprite }
+
+  TBaseGfxSprite = class(TSDLGfxSurface)
+  private
+    FPos: TVector2DInt;
+  protected
+    function GetX: integer; virtual;
+    procedure SetX(aX: integer); virtual;
+    function GetY: integer; virtual;
+    procedure SetY(aY: integer); virtual;
+    procedure SetPos(aPos: TVector2DInt); virtual;
+  public
+    constructor Create;
+
+    procedure RenderTo(aSurface: TSDLSurface); override;
+
+    property x: integer read GetX write SetX;
+    property y: integer read GetY write SetY;
+    property Pos: TVector2DInt read FPos write SetPos;
+  end;
+
+  //****************************************************************************
+  // sprite with a velocity
+  //****************************************************************************
+
+  { TMovingSprite }
+
+  TMovingSprite = class(TBaseSprite)
+  private
+    FVelocity: TVector2DFloat;
+    FPosFloat: TVector2DFloat;
+    FLastMove: integer;
+  protected
+    procedure SetX(aX: integer); override;
+    procedure SetY(aY: integer); override;
+    procedure SetPos(aPos: TVector2DInt); override;
+    function GetXFloat: single; virtual;
+    procedure SetXFloat(aX: single); virtual;
+    function GetYFloat: single; virtual;
+    procedure SetYFloat(aY: single); virtual;
+    procedure SetPosFloat(aPos: TVector2DFloat); virtual;
+    function GetVelX: single; virtual;
+    procedure SetVelX(aVelX: single); virtual;
+    function GetVelY: single; virtual;
+    procedure SetVelY(aVelY: single); virtual;
+
+    property LastMove: integer read FLastMove;                                  //<- time of last move (in ticks = ms)
+  public
+    constructor Create;
+
+    procedure Update; override;
+    procedure Move; virtual;
+
+    property XFloat: single read GetXFloat write SetXFloat;
+    property YFloat: single read GetYFloat write SetYFloat;
+    property PosFloat: TVector2DFloat read FPosFloat write SetPosFloat;
+
+    property VelX: single read GetVelX write SetVelX;
+    property VelY: single read GetVelY write SetVelY;
+    property Velocity: TVector2DFloat read FVelocity write FVelocity;
+  end;
+
+  //****************************************************************************
+  // gxsprite with a velocity
+  //****************************************************************************
+
+  { TMovingGfxSprite }
+
+  TMovingGfxSprite = class(TBaseGfxSprite)
+  private
+    FVelocity: TVector2DFloat;
+    FPosFloat: TVector2DFloat;
+    FLastMove: integer;
+  protected
+    procedure SetX(aX: integer); override;
+    procedure SetY(aY: integer); override;
+    procedure SetPos(aPos: TVector2DInt); override;
+    function GetXFloat: single; virtual;
+    procedure SetXFloat(aX: single); virtual;
+    function GetYFloat: single; virtual;
+    procedure SetYFloat(aY: single); virtual;
+    procedure SetPosFloat(aPos: TVector2DFloat); virtual;
+    function GetVelX: single; virtual;
+    procedure SetVelX(aVelX: single); virtual;
+    function GetVelY: single; virtual;
+    procedure SetVelY(aVelY: single); virtual;
+
+    property LastMove: integer read FLastMove;                                  //<- time of last move (in ticks = ms)
+  public
+    constructor Create;
+
+    procedure Update; override;
+    procedure Move; virtual;
+
+    property XFloat: single read GetXFloat write SetXFloat;
+    property YFloat: single read GetYFloat write SetYFloat;
+    property PosFloat: TVector2DFloat read FPosFloat write SetPosFloat;
+
+    property VelX: single read GetVelX write SetVelX;
+    property VelY: single read GetVelY write SetVelY;
+    property Velocity: TVector2DFloat read FVelocity write FVelocity;
+  end;
+
+  //****************************************************************************
+  // this sprite can get its image(s) form a tile set
+  //****************************************************************************
+
+  { TTileSprite }
+
+  TTileSprite = class(TMovingSprite)
+  private
+    FTiles: TBaseTiles;
+    FTileIndex: integer;
+  protected
+    function GetAssigned: boolean; override;
+    function GetWidth: integer; override;
+    function GetHeight: integer; override;
+    procedure SetTileIndex(aIndex: integer); virtual;
+    function GetTileRow: integer; virtual;
+    procedure SetTileRow(aRow: integer); virtual;
+    function GetTileCol: integer; virtual;
+    procedure SetTileCol(aCol: integer); virtual;
+  public
+    constructor Create(aTiles: TBaseTiles);
+
+    procedure Update; override;
+    procedure RenderTo(aX, aY: integer; aSurface: TSDLSurface); override;
+
+    property Tiles: TBaseTiles read FTiles;                                     //<- tile set containing the sprites images
+    property TileIndex: integer read FTileIndex write SetTileIndex;             //<- index ot the sprites image in the tile set
+    property TileRow: integer read GetTileRow write SetTileRow;                 //<- row of the image in the tile set
+    property TileCol: integer read GetTileCol write SetTileCol;                 //<- column of the image in the tile set
+  end;
+
+  //****************************************************************************
+  // a sprite than can do automatic animations
+  //****************************************************************************
+
+  { TAnimatedSprite }
+
+  TAnimatedSprite = class(TTileSprite)
+  private
+    FAnimDirection: TAnimDirection;
+    FCurrentAnimDirection: TAnimDirection;
+    FAnimType: TAnimType;
+    FAnimSpeed: Single;
+    FLastFrame: integer;
+  protected
+    property LastFrame: integer read FLastFrame;                                //<- time of last frame (in ticks = ms)
+  public
+    constructor Create(aTiles: TBaseTiles); overload;
+    constructor Create(aTiles: TBaseTiles; aTileRow, aTileCol: integer; aSpeed: Single; aDirection: TAnimDirection; aType: TAnimType); overload;
+
+    procedure Animate; virtual;
+    procedure NextFrame; virtual;
+
+    property AnimDirection: TAnimDirection read FAnimDirection write FAnimDirection; //<- how to get the next tile
+    property CurrentAnimDirection: TAnimDirection read FCurrentAnimDirection;   //<- Direction that is acually used by the Animation (for back and forth modes)
+    property AnimType: TAnimType read FAnimType write FAnimType;                //<- what to do when the end of the animation is reached
+    property AnimSpeed: Single;                                                 //<- speed of the animation in frames per second
+  end;
+
+implementation
+
+//******************************************************************************
+// TBaseSprite
+//******************************************************************************
+
+constructor TBaseSprite.Create;
+begin
+  inherited;
+  FPos := NullVector2DInt;
+end;
+
+//------------------------------------------------------------------------------
+
+function TBaseSprite.GetX: integer;
+begin
+  Result := FPos.x;
+end;
+
+procedure TBaseSprite.SetX(aX: integer);
+begin
+  FPos.x := aX;
+end;
+
+function TBaseSprite.GetY: integer;
+begin
+  Result := FPos.y;
+end;
+
+procedure TBaseSprite.SetY(aY: integer);
+begin
+  FPos.y := aY;
+end;
+
+procedure TBaseSprite.SetPos(aPos: TVector2DInt);
+begin
+  FPos := aPos;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TBaseSprite.RenderTo(aSurface: TSDLSurface);
+begin
+  RenderTo(x, y, aSurface);
+end;
+
+//******************************************************************************
+// TBaseGfxSprite
+//******************************************************************************
+
+constructor TBaseGfxSprite.Create;
+begin
+  inherited;
+  FPos := NullVector2DInt;
+end;
+
+//------------------------------------------------------------------------------
+
+function TBaseGfxSprite.GetX: integer;
+begin
+  Result := FPos.x;
+end;
+
+procedure TBaseGfxSprite.SetX(aX: integer);
+begin
+  FPos.x := aX;
+end;
+
+function TBaseGfxSprite.GetY: integer;
+begin
+  Result := FPos.y;
+end;
+
+procedure TBaseGfxSprite.SetY(aY: integer);
+begin
+  FPos.y := aY;
+end;
+
+procedure TBaseGfxSprite.SetPos(aPos: TVector2DInt);
+begin
+  FPos := aPos;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TBaseGfxSprite.RenderTo(aSurface: TSDLSurface);
+begin
+  RenderTo(x, y, aSurface);
+end;
+
+//******************************************************************************
+// TMovingSprite
+//******************************************************************************
+
+constructor TMovingSprite.Create;
+begin
+  inherited Create;
+
+  FVelocity := NullVector2DFloat;
+  FLastMove := SDL_GetTicks;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TMovingSprite.SetX(aX: integer);
+begin
+  inherited;
+  FPosFloat.x := aX;
+end;
+
+procedure TMovingSprite.SetY(aY: integer);
+begin
+  inherited;
+  FPosFloat.y := aY;
+end;
+
+procedure TMovingSprite.SetPos(aPos: TVector2DInt);
+begin
+  inherited;
+  FPosFloat.x := aPos.x;
+  FPosFloat.y := aPos.y;
+end;
+
+function TMovingSprite.GetXFloat: single;
+begin
+  Result := FPosFloat.x;
+end;
+
+procedure TMovingSprite.SetXFloat(aX: single);
+begin
+  FPosFloat.x := aX;
+  FPos.x := round(aX);
+end;
+
+function TMovingSprite.GetYFloat: single;
+begin
+  Result := FPosFloat.y;
+end;
+
+procedure TMovingSprite.SetYFloat(aY: single);
+begin
+  FPosFloat.y := aY;
+  FPos.y := round(aY);
+end;
+
+procedure TMovingSprite.SetPosFloat(aPos: TVector2DFloat);
+begin
+  FPosFloat := aPos;
+  FPos.x := round(aPos.x);
+  FPos.y := round(aPos.y);
+end;
+
+function TMovingSprite.GetVelX: single;
+begin
+  Result := FVelocity.x;
+end;
+
+procedure TMovingSprite.SetVelX(aVelX: single);
+begin
+  FVelocity.x := aVelX;
+end;
+
+function TMovingSprite.GetVelY: single;
+begin
+  Result := FVelocity.y;
+end;
+
+procedure TMovingSprite.SetVelY(aVelY: single);
+begin
+  FVelocity.y := aVelY;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TMovingSprite.Update;
+begin
+  inherited Update;
+  Move;
+end;
+
+procedure TMovingSprite.Move;
+var
+  aTicks: integer;
+  aDelta: integer;
+begin
+  aTicks := SDL_GetTicks;
+  aDelta := aTicks - FLastMove;
+
+  XFloat := XFloat + VelX * (aDelta / 1000);
+  YFloat := YFloat + VelY * (aDelta / 1000);
+
+  FLastMove := aTicks;
+end;
+
+//******************************************************************************
+// TMovingGfxSprite
+//******************************************************************************
+
+constructor TMovingGfxSprite.Create;
+begin
+  inherited Create;
+
+  FVelocity := NullVector2DFloat;
+  FLastMove := SDL_GetTicks;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TMovingGfxSprite.SetX(aX: integer);
+begin
+  inherited;
+  FPosFloat.x := aX;
+end;
+
+procedure TMovingGfxSprite.SetY(aY: integer);
+begin
+  inherited;
+  FPosFloat.y := aY;
+end;
+
+procedure TMovingGfxSprite.SetPos(aPos: TVector2DInt);
+begin
+  inherited;
+  FPosFloat.x := aPos.x;
+  FPosFloat.y := aPos.y;
+end;
+
+function TMovingGfxSprite.GetXFloat: single;
+begin
+  Result := FPosFloat.x;
+end;
+
+procedure TMovingGfxSprite.SetXFloat(aX: single);
+begin
+  FPosFloat.x := aX;
+  FPos.x := round(aX);
+end;
+
+function TMovingGfxSprite.GetYFloat: single;
+begin
+  Result := FPosFloat.y;
+end;
+
+procedure TMovingGfxSprite.SetYFloat(aY: single);
+begin
+  FPosFloat.y := aY;
+  FPos.y := round(aY);
+end;
+
+procedure TMovingGfxSprite.SetPosFloat(aPos: TVector2DFloat);
+begin
+  FPosFloat := aPos;
+  FPos.x := round(aPos.x);
+  FPos.y := round(aPos.y);
+end;
+
+function TMovingGfxSprite.GetVelX: single;
+begin
+  Result := FVelocity.x;
+end;
+
+procedure TMovingGfxSprite.SetVelX(aVelX: single);
+begin
+  FVelocity.x := aVelX;
+end;
+
+function TMovingGfxSprite.GetVelY: single;
+begin
+  Result := FVelocity.y;
+end;
+
+procedure TMovingGfxSprite.SetVelY(aVelY: single);
+begin
+  FVelocity.y := aVelY;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TMovingGfxSprite.Update;
+begin
+  inherited Update;
+  Move;
+end;
+
+procedure TMovingGfxSprite.Move;
+var
+  aTicks: integer;
+  aDelta: integer;
+begin
+  aTicks := SDL_GetTicks;
+  aDelta := aTicks - FLastMove;
+
+  XFloat := XFloat + VelX * (aDelta / 1000);
+  YFloat := YFloat + VelY * (aDelta / 1000);
+
+  FLastMove := aTicks;
+end;
+
+//******************************************************************************
+// TTileSprite
+//******************************************************************************
+
+constructor TTileSprite.Create(aTiles: TBaseTiles);
+begin
+  inherited Create;
+
+  FTiles := aTiles;
+  FTileIndex := 0;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TTileSprite.SetTileIndex(aIndex: integer);
+begin
+  if not Assigned then
+    raise ESDLTileError.Create('No Tileset assigned')
+  ;
+
+  if (aIndex < 0) or (aIndex > Tiles.TileCount - 1) then
+    raise ESDLTileError.Create('Tile index out of bounds')
+  ;
+
+  FTileIndex := aIndex;
+end;
+
+function TTileSprite.GetTileRow: integer;
+begin
+  if Assigned then
+    Result := Tiles.TileRow[TileIndex]
+  else
+    Result := 0
+  ;
+end;
+
+procedure TTileSprite.SetTileRow(aRow: integer);
+begin
+  if not Assigned then
+    raise ESDLTileError.Create('No Tileset assigned')
+  ;
+
+  if (aRow < 0) or (aRow > Tiles.RowCount - 1) then
+    raise ESDLTileError.Create('Row ' + IntToStr(aRow) + ' out of bounds');
+  ;
+
+  FTileIndex := Tiles.TileIndex[aRow, Tiles.TileCol[FTileIndex]];
+end;
+
+function TTileSprite.GetTileCol: integer;
+begin
+  if Assigned then
+    Result := Tiles.TileCol[TileIndex]
+  else
+    Result := 0
+  ;
+end;
+
+procedure TTileSprite.SetTileCol(aCol: integer);
+begin
+  if not Assigned then
+    raise ESDLTileError.Create('No Tileset assigned')
+  ;
+
+  if (aCol < 0) or (aCol > Tiles.ColCount - 1) then
+    raise ESDLTileError.Create('Col ' + IntToStr(aCol) + ' out of bounds');
+  ;
+
+  FTileIndex := Tiles.TileIndex[Tiles.TileRow[FTileIndex], aCol];
+end;
+
+function TTileSprite.GetAssigned: boolean;
+begin
+  Result := FTiles <> nil;
+end;
+
+function TTileSprite.GetWidth: integer;
+begin
+  if Assigned then
+    Result := Tiles.TileWidth
+  else
+    Result := 0;
+  ;
+end;
+
+function TTileSprite.GetHeight: integer;
+begin
+  if Assigned then
+    Result := Tiles.TileHeight
+  else
+    Result := 0;
+  ;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TTileSprite.Update;
+var
+  aTileRect: TSDL_Rect;
+  aSurface: PSDL_Surface;
+begin
+  Move;
+
+  if Assigned then begin
+    if isDeformed then begin
+      //*** doesn't work since the alpha channel ist not blitted to the temporary surface (at least not in all SDL versions)
+      //*** (code seems to work on windows but not on linux)
+
+      //*** blitting directly from the tile set is not possible.
+      //*** therefor create a zoomed version of the original surface
+      if FSurface <> FOrgSurface then
+         SDL_FreeSurface(FSurface)
+      ;
+      SDL_FreeSurface(FOrgSurface);
+      aSurface := SDL_CreateRGBSurface(
+        Tiles.Surface^.flags,
+        Tiles.TileWidth,
+        Tiles.TileHeight,
+        Tiles.Surface^.format^.BitsPerPixel,
+        0, 0, 0, 0
+      );
+      try
+        //SDL_SetColorKey(aSurface, SDL_SRCCOLORKEY, $00000000);
+        FOrgSurface := SDL_DisplayFormat(aSurface);
+      finally
+        SDL_FreeSurface(aSurface);
+      end;
+      //HandleSDLError(SDL_SetAlpha(FOrgSurface, SDL_SRCALPHA, $FF));
+      aTileRect := Tiles.TileRect[TileIndex];
+      ApplySurface(0, 0, Tiles.Surface, OrgSurface, @aTileRect);
+      case ZoomDirection of
+        zdBoth:
+          FSurface := rotozoomSurface(OrgSurface, Angle, Zoom, 1);
+        zdX:
+          FSurface := rotozoomSurfaceXY(OrgSurface, Angle, Zoom, 1, 1);
+        zdY:
+          FSurface := rotozoomSurfaceXY(OrgSurface, Angle, 1, Zoom, 1);
+      end;
+    end;
+  end;
+end;
+
+procedure TTileSprite.RenderTo(aX, aY: integer; aSurface: TSDLSurface);
+begin
+  if Assigned then begin
+    if isDeformed then
+      ApplySurface(aX, aY, Surface, aSurface.Surface)
+    else
+      Tiles.RenderTileTo(TileIndex, aX, aY, aSurface)
+    ;
+  end;
+end;
+
+//******************************************************************************
+// TAnimatedSprite
+//******************************************************************************
+
+constructor TAnimatedSprite.Create(aTiles: TBaseTiles);
+begin
+  inherited Create(aTiles);
+
+  FAnimDirection         := adForward;
+  FCurrentAnimDirection  := adForward;
+  FAnimType              := atRotating;
+  FAnimSpeed             := 1;
+end;
+
+constructor TAnimatedSprite.Create(aTiles: TBaseTiles; aTileRow, aTileCol: integer; aSpeed: Single; aDirection: TAnimDirection; aType: TAnimType);
+begin
+  inherited Create(aTiles);
+
+  FTileIndex := aTiles.TileIndex[aTileRow, aTileCol];
+
+  FAnimDirection        := aDirection;
+  FCurrentAnimDirection := aDirection;
+
+  FAnimType  := aType;
+  FAnimSpeed := aSpeed;
+end;
+
+//------------------------------------------------------------------------------
+
+procedure TAnimatedSprite.Animate;
+var
+  aTicks: int64;
+  aDelta: int64;
+begin
+  if Assigned then begin
+
+    aTicks   := SDL_GetTicks;
+    aDelta   := (aTicks - FLastFrame) - Trunc(1000 / FAnimSpeed);
+
+    if aDelta >= 0 then begin
+      NextFrame;
+
+      FLastFrame := aTicks - aDelta;                                            //<- compensate if it came too late
+    end;
+  end;
+end;
+
+procedure TAnimatedSprite.NextFrame;
+const
+  RndDir: array[0..2] of TAnimDirection = (adBackward, adForward, adNone);
+var
+  aRndDir: integer;
+  aNext: integer;
+begin
+  if Assigned then begin
+    case CurrentAnimDirection of
+      adForward:
+        //*** one tile ahead
+        if (TileIndex >= Tiles.TileCount - 1) then begin
+          case AnimType of
+            atOnce:
+              TileIndex := Tiles.TileCount - 1;
+            else
+              TileIndex := 0;
+          end;
+        end
+        else begin
+          TileIndex := TileIndex + 1;
+          if (AnimType = atBackAndForth) and (TileIndex >= Tiles.TileCount - 1) then
+            FCurrentAnimDirection := adBackward
+          ;
+        end;
+
+      adBackward:
+        //*** one tile back
+        if (TileIndex <= 0) then begin
+          case AnimType of
+            atOnce:
+              TileIndex := 0;
+            else
+              TileIndex := Tiles.TileCount - 1;
+          end;
+        end
+        else begin
+          TileIndex := TileIndex - 1;
+          if (AnimType = atBackAndForth) and (TileIndex <= 0) then
+            FCurrentAnimDirection := adForward
+          ;
+        end;
+
+      adLeft:
+        //*** one tile left
+        if (TileCol <= 0) then begin
+          case AnimType of
+            atOnce:
+              TileCol := 0;
+            else
+              TileCol := Tiles.ColCount - 1;
+          end;
+        end
+        else begin
+          TileCol := TileCol - 1;
+          if (AnimType = atBackAndForth) and (TileCol <= 0) then
+            FCurrentAnimDirection := adRight
+          ;
+        end;
+
+      adRight:
+        //*** one tile right
+        if (TileCol >= Tiles.ColCount - 1) then begin
+          case AnimType of
+            atOnce:
+              TileCol := Tiles.ColCount - 1;
+            else
+              TileCol := 0;
+          end;
+        end
+        else begin
+          TileCol := TileCol + 1;
+          if (AnimType = atBackAndForth) and (TileCol >= Tiles.ColCount - 1) then
+            FCurrentAnimDirection := adLeft
+          ;
+        end;
+
+      adUp:
+        //*** one tile up
+        if (TileRow <= 0) then begin
+          case AnimType of
+            atOnce:
+              TileRow := 0;
+            else
+              TileRow := Tiles.RowCount - 1;
+          end;
+        end
+        else begin
+          TileRow := TileRow - 1;
+          if (AnimType = atBackAndForth) and (TileRow <= 0) then
+            FCurrentAnimDirection := adDown
+          ;
+        end;
+
+      adDown:
+        //*** one tile down
+        if (TileRow >= Tiles.RowCount - 1) then begin
+          case AnimType of
+            atOnce:
+              TileRow := Tiles.RowCount - 1;
+            else
+              TileRow := 0;
+          end;
+        end
+        else begin
+          TileRow := TileRow + 1;
+          if (AnimType = atBackAndForth) and (TileRow >= Tiles.RowCount - 1) then
+            FCurrentAnimDirection := adUp
+          ;
+        end;
+
+      adRandom:
+        //*** randomly forward or backward;
+        begin
+          if AnimType in [atBackAndForthOrStay, atRotatingOrStay] then
+            aRndDir := Random(3)
+          else
+            aRndDir := Random(2)
+          ;
+          case RndDir[aRndDir] of
+            adForward:
+              aNext := TileIndex + 1;
+            adBackward:
+              aNext := TileIndex - 1;
+            else
+              aNext := TileIndex;
+          end;
+
+          //*** lower limit exceeded?
+          if aNext < 0 then begin
+            case AnimType of
+              atRotating, atRotatingOrStay:
+                aNext := Tiles.TileCount - 1;
+              atBackAndForth:
+                aNext := Min(1, Tiles.TileCount - 1);
+              atBackAndForthOrStay:
+                aNext := Min(Random(1), Tiles.TileCount -1);
+              else
+                aNext := 0;
+            end;
+          end;
+
+          //*** upper limit exceeded?
+          if aNext > Tiles.TileCount - 1 then begin
+            case AnimType of
+              atRotating, atRotatingOrStay:
+                aNext := 0;
+              atBackAndForth:
+                aNext := Max(0, Tiles.TileCount - 2);
+              atBackAndForthOrStay:
+                aNext := Max(0, Tiles.TileCount - 1 - Random(1));
+              else
+                aNext := 0;
+            end;
+          end;
+
+          TileIndex := aNext;
+        end;
+
+      adRandomHorizontal:
+        //*** randomly left or right;
+        begin
+          if AnimType in [atBackAndForthOrStay, atRotatingOrStay] then
+            aRndDir := Random(3)
+          else
+            aRndDir := Random(2)
+          ;
+          case RndDir[aRndDir] of
+            adForward:
+              aNext := TileCol + 1;
+            adBackward:
+              aNext := TileCol - 1;
+            else
+              aNext := TileCol;
+          end;
+
+          //*** lower limit exceeded?
+          if aNext < 0 then begin
+            case AnimType of
+              atRotating, atRotatingOrStay:
+                aNext := Tiles.ColCount - 1;
+              atBackAndForth:
+                aNext := Min(1, Tiles.ColCount - 1);
+              atBackAndForthOrStay:
+                aNext := Min(Random(1), Tiles.ColCount -1);
+              else
+                aNext := 0;
+            end;
+          end;
+
+          //*** upper limit exceeded?
+          if aNext > Tiles.ColCount - 1 then begin
+            case AnimType of
+              atRotating, atRotatingOrStay:
+                aNext := 0;
+              atBackAndForth:
+                aNext := Max(0, Tiles.ColCount - 2);
+              atBackAndForthOrStay:
+                aNext := Max(0, Tiles.ColCount - 1 - Random(1));
+              else
+                aNext := 0;
+            end;
+          end;
+
+          TileCol := aNext;
+        end;
+
+      adRandomVertical:
+        //*** randomly up or down;
+        begin
+          if AnimType in [atBackAndForthOrStay, atRotatingOrStay] then
+            aRndDir := Random(3)
+          else
+            aRndDir := Random(2)
+          ;
+          case RndDir[aRndDir] of
+            adForward:
+              aNext := TileRow + 1;
+            adBackward:
+              aNext := TileRow - 1;
+            else
+              aNext := TileRow;
+          end;
+
+          //*** lower limit exceeded?
+          if aNext < 0 then begin
+            case AnimType of
+              atRotating, atRotatingOrStay:
+                aNext := Tiles.RowCount - 1;
+              atBackAndForth:
+                aNext := Min(1, Tiles.RowCOunt - 1);
+              atBackAndForthOrStay:
+                aNext := Min(Random(1), Tiles.RowCount -1);
+              else
+                aNext := 0;
+            end;
+          end;
+
+          //*** upper limit exceeded?
+          if aNext > Tiles.RowCount - 1 then begin
+            case AnimType of
+              atRotating, atRotatingOrStay:
+                aNext := 0;
+              atBackAndForth:
+                aNext := Max(0, Tiles.RowCount - 2);
+              atBackAndForthOrStay:
+                aNext := Max(0, Tiles.RowCount - 1 - Random(1));
+              else
+                aNext := 0;
+            end;
+          end;
+
+          TileRow := aNext;
+        end;
+
+    end;
+  end;
+end;
+
+end.
+

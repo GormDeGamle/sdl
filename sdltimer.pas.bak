@@ -1,0 +1,146 @@
+unit sdltimer;
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils, sdl;
+
+type
+
+  //****************************************************************************
+  // SDL timer and frame limiter
+  //****************************************************************************
+
+  TSDLTimer = class
+  private
+    FStartedTicks: integer;
+    FPausedTicks: integer;
+    FPaused: boolean;
+    FRunning: boolean;
+    procedure SetRunning(aValue: boolean);
+    procedure SetPaused(aValue: boolean);
+    function GetTicks: integer;
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    procedure Start; virtual;
+    procedure Stop; virtual;
+    procedure Pause; virtual;
+    procedure UnPause; virtual;
+    procedure Limit(aFPS: integer); virtual;
+
+    property Running: boolean read FRunning write SetRunning;
+    property Paused: boolean read FPaused write SetPaused;
+    property StartedTicks: integer read FStartedTicks;
+    property Ticks: integer read GetTicks;
+  end;
+
+implementation
+
+//------------------------------------------------------------------------------
+// Constructor/Destructor
+//------------------------------------------------------------------------------
+
+constructor TSDLTimer.Create;
+begin
+  FStartedTicks := 0;
+  FPausedTicks  := 0;
+  FRunning      := FALSE;
+  FPaused       := FALSE;
+  inherited Create;
+end;
+
+destructor TSDLTimer.Destroy;
+begin
+  inherited Destroy
+end;
+
+//------------------------------------------------------------------------------
+// Properties
+//------------------------------------------------------------------------------
+
+procedure TSDLTimer.SetRunning(aValue: boolean);
+begin
+  if (FRunning <> aValue) then begin
+    if aValue then
+      Start
+    else
+      Stop
+    ;
+  end;
+end;
+
+procedure TSDLTimer.SetPaused(aValue: boolean);
+begin
+  if (FPaused <> aValue) then begin
+    if aValue then
+      Pause
+    else
+      UnPause
+    ;
+  end;
+end;
+
+function TSDLTimer.GetTicks: integer;
+begin
+  Result := 0;
+  if Running then begin
+    if Paused then
+      Result := FPausedTicks
+    else
+      Result := SDL_GetTicks - FStartedTicks;
+  end;
+end;
+
+//------------------------------------------------------------------------------
+// Methods
+//------------------------------------------------------------------------------
+
+procedure TSDLTimer.Start;
+begin
+  FRunning := TRUE;
+  FPaused  := FALSE;
+  FStartedTicks := SDL_GetTicks;
+end;
+
+procedure TSDLTimer.Stop;
+begin
+  FRunning := FALSE;
+  FPaused  := FALSE;
+end;
+
+procedure TSDLTimer.Pause;
+begin
+  if Running and not FPaused then begin
+    FPaused := TRUE;
+    FPausedTicks := SDL_GetTicks - FStartedTicks;
+  end;
+end;
+
+procedure TSDLTimer.UnPause;
+begin
+  if FPaused then begin
+    FPaused := FALSE;
+    FStartedTicks := SDL_GetTicks - FPausedTicks;
+    FPausedTicks := 0;
+  end;
+end;
+
+procedure TSDLTimer.Limit(aFPS: integer);
+begin
+  if Running then begin
+    if (Ticks < 1000 div aFPS) then begin
+      //*** wait for the next frame...
+      //Sleep((1000 div aFPS) - Ticks);
+      SDL_Delay((1000 div aFPS) - Ticks);
+    end;
+    //*** restart the timer
+    //FStartedTicks := SDL_GetTicks;
+  end;
+end;
+
+end.
+
